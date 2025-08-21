@@ -6,7 +6,9 @@ const UserSchema = new Schema({
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, trim: true },
-    passwordHash: { type: String, required: true }
+    passwordHash: { type: String, required: true },
+    verified: { type: Boolean, default: false },
+    verificationToken: { type: String }
 }, { timestamps: true });
 
 UserSchema.methods.setPassword = async function (pw) {
