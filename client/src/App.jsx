@@ -16,9 +16,9 @@ export default function App() {
   const { me, logout } = useAuth();
 
   return (
-    <main style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
-      <header style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
-        <h2 style={{ marginRight: 'auto' }}>MMTC</h2>
+    <div className="app-container">
+      <header className="app-header">
+        <h2>MMTC</h2>
         <Link to="/">Home</Link>
         <Link to="/helpers">Helpers</Link>
         <Link to="/myleads">My Leads</Link>
@@ -36,26 +36,28 @@ export default function App() {
         )}
       </header>
 
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/helpers" element={<Helpers />} />
-        <Route path="/helpers/:id" element={<HelperDetail />} />
-        <Route path="/myleads" element={<MyLeads />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+      <main className="app-content">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/helpers" element={<Helpers />} />
+          <Route path="/helpers/:id" element={<HelperDetail />} />
+          <Route path="/myleads" element={<MyLeads />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
 
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <Dashboard />
-            </AdminRoute>
-          }
-        >
-          <Route path="helpers" element={<HelpersAdmin />} />
-        </Route>
-      </Routes>
-      <WhatsAppButton />
-    </main>
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <Dashboard />
+              </AdminRoute>
+            }
+          >
+            <Route path="helpers" element={<HelpersAdmin />} />
+          </Route>
+        </Routes>
+        <WhatsAppButton />
+      </main>
+    </div>
   );
 }
