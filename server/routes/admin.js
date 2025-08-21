@@ -4,18 +4,43 @@ const auth = require('../middleware/auth');
 const staffOnly = require('../middleware/staffOnly');
 const Helper = require('../models/Helper');
 
+// --- Upload deps/setup (MUST be before routes) ---
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
+
+// ensure uploads dir exists
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+    filename: (_req, file, cb) => {
+        const safe = Date.now() + '-' + file.originalname.replace(/\s+/g, '_');
+        cb(null, safe);
+    },
+});
+const fileFilter = (_req, file, cb) => {
+    const ok = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);
+    if (!ok) return cb(new Error('Only JPG/PNG/WebP images are allowed'));
+    cb(null, true);
+};
+const upload = multer({
+    storage,
+    fileFilter,
+    limits: { fileSize: 8 * 1024 * 1024 }, // 8MB per file
+});
+
 /**
  * Helpers Admin CRUD
  * All routes require:
  *  - Valid JWT (auth())
  *  - Role = staff|admin (staffOnly)
  *
- * Response shape (consistent):
- *  { success: boolean, data?: any, error?: string, meta?: object }
+ * Response: { success: boolean, data?: any, error?: string, meta?: object }
  */
 
 // GET /api/admin/helpers?q=&status=&page=&limit=
-// List helpers with simple filters + pagination
 router.get('/helpers', auth(), staffOnly, async (req, res) => {
     try {
         const { q, status } = req.query;
@@ -45,7 +70,6 @@ router.get('/helpers', auth(), staffOnly, async (req, res) => {
 });
 
 // GET /api/admin/helpers/:id
-// Read one helper
 router.get('/helpers/:id', auth(), staffOnly, async (req, res) => {
     try {
         const doc = await Helper.findById(req.params.id);
@@ -58,33 +82,20 @@ router.get('/helpers/:id', auth(), staffOnly, async (req, res) => {
 });
 
 // POST /api/admin/helpers
-// Create helper
 router.post('/helpers', auth(), staffOnly, async (req, res) => {
     try {
         const {
-            name,
-            age,
-            nationality,
-            experience = 0,
-            skills = [],
-            availability = true,
-            expectedSalary = null,
+            name, age, nationality,
+            experience = 0, skills = [],
+            availability = true, expectedSalary = null,
         } = req.body || {};
 
         if (!name || !age || !nationality) {
-            return res
-                .status(400)
-                .json({ success: false, error: 'name, age, nationality are required' });
+            return res.status(400).json({ success: false, error: 'name, age, nationality are required' });
         }
 
         const doc = await Helper.create({
-            name,
-            age,
-            nationality,
-            experience,
-            skills,
-            availability,
-            expectedSalary,
+            name, age, nationality, experience, skills, availability, expectedSalary,
         });
 
         return res.status(201).json({ success: true, data: doc });
@@ -95,18 +106,9 @@ router.post('/helpers', auth(), staffOnly, async (req, res) => {
 });
 
 // PUT /api/admin/helpers/:id
-// Update helper (whitelisted fields)
 router.put('/helpers/:id', auth(), staffOnly, async (req, res) => {
     try {
-        const allowed = [
-            'name',
-            'age',
-            'nationality',
-            'experience',
-            'skills',
-            'availability',
-            'expectedSalary',
-        ];
+        const allowed = ['name', 'age', 'nationality', 'experience', 'skills', 'availability', 'expectedSalary', 'photos'];
         const patch = {};
         for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
 
@@ -121,7 +123,6 @@ router.put('/helpers/:id', auth(), staffOnly, async (req, res) => {
 });
 
 // DELETE /api/admin/helpers/:id
-// Hard delete helper
 router.delete('/helpers/:id', auth(), staffOnly, async (req, res) => {
     try {
         const doc = await Helper.findByIdAndDelete(req.params.id);
@@ -129,6 +130,50 @@ router.delete('/helpers/:id', auth(), staffOnly, async (req, res) => {
         return res.json({ success: true, data: { ok: true } });
     } catch (err) {
         console.error('DELETE /admin/helpers/:id error:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+/* -------- Photo upload endpoints -------- */
+
+// POST /api/admin/helpers/:id/photos  (field name: photos)
+router.post('/helpers/:id/photos', auth(), staffOnly, upload.array('photos', 10), async (req, res) => {
+    try {
+        const helper = await Helper.findById(req.params.id);
+        if (!helper) return res.status(404).json({ success: false, error: 'Helper not found' });
+
+        const urls = (req.files || []).map(f => `/uploads/${f.filename}`);
+        helper.photos = [...(helper.photos || []), ...urls];
+        await helper.save();
+
+        return res.json({ success: true, data: { photos: helper.photos } });
+    } catch (err) {
+        console.error('POST /admin/helpers/:id/photos error:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// DELETE /api/admin/helpers/:id/photos  (body: { url })
+router.delete('/helpers/:id/photos', auth(), staffOnly, async (req, res) => {
+    try {
+        const { url } = req.body || {};
+        if (!url) return res.status(400).json({ success: false, error: 'url is required' });
+
+        const helper = await Helper.findById(req.params.id);
+        if (!helper) return res.status(404).json({ success: false, error: 'Helper not found' });
+
+        helper.photos = (helper.photos || []).filter(u => u !== url);
+        await helper.save();
+
+        // best-effort local file remove
+        if (url.startsWith('/uploads/')) {
+            const filePath = path.join(UPLOAD_DIR, path.basename(url));
+            if (fs.existsSync(filePath)) fs.unlink(filePath, () => { });
+        }
+
+        return res.json({ success: true, data: { photos: helper.photos } });
+    } catch (err) {
+        console.error('DELETE /admin/helpers/:id/photos error:', err);
         return res.status(500).json({ success: false, error: 'Server error' });
     }
 });

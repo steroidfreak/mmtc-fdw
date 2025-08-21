@@ -4,6 +4,23 @@ import api from '../api';
 import { useAuth } from '../auth.jsx';
 import InterviewModal from '../components/InterviewModal.jsx';
 
+const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:4000';
+const PLACEHOLDER = '/placeholder-helper.png';
+
+function getMainPhoto(h) {
+    if (!h || !Array.isArray(h.photos) || !h.photos.length) return PLACEHOLDER;
+    const first = h.photos[0];
+    const raw = typeof first === 'string' ? first : first?.url || first?.path || null;
+    if (!raw) return PLACEHOLDER;
+
+    const isAbs = /^https?:\/\//i.test(raw);
+    const url = isAbs ? raw : `${API_BASE}${raw.startsWith('/') ? '' : '/'}${raw}`;
+
+    // cache-bust
+    const v = h.updatedAt ? new Date(h.updatedAt).getTime() : Date.now();
+    return `${url}${url.includes('?') ? '&' : '?'}v=${v}`;
+}
+
 export default function HelperDetail() {
     const { id } = useParams();
     const { me } = useAuth();
@@ -22,7 +39,9 @@ export default function HelperDetail() {
                     const s = await api.get('/jobs/active/shortlist');
                     setShortlisted((s.data.shortlist || []).some(x => x._id === id));
                 }
-            } catch { setMsg('Not found'); }
+            } catch {
+                setMsg('Not found');
+            }
         })();
     }, [id, me]);
 
@@ -44,10 +63,32 @@ export default function HelperDetail() {
         }
     }
 
+    const mainPhoto = getMainPhoto(h);
+
     return (
         <>
             <Link to="/helpers">← Back to list</Link>
             <h1>{h.name} <small>({h.nationality})</small></h1>
+
+            {/* Big photo only */}
+            <div style={{
+                width: 320,
+                height: 320,
+                borderRadius: 12,
+                overflow: 'hidden',
+                border: '1px solid #eee',
+                margin: '12px 0',
+                background: '#fafafa'
+            }}>
+                <img
+                    src={mainPhoto}
+                    alt={`${h.name} photo`}
+                    onError={(e) => { e.currentTarget.src = PLACEHOLDER; }}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    loading="eager"
+                />
+            </div>
+
             <p><b>Experience:</b> {h.experience} yr(s)</p>
             <p><b>Skills:</b> {Array.isArray(h.skills) ? h.skills.join(', ') : '-'}</p>
             <p><b>Availability:</b> {h.availability ? 'Available' : 'Not available'}</p>
