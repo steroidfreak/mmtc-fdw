@@ -1,6 +1,35 @@
 const router = require('express').Router();
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+let nodemailer;
+try {
+    nodemailer = require('nodemailer');
+} catch {
+    nodemailer = null;
+}
 const User = require('../models/User');
+
+async function sendVerification(email, token) {
+    const url = `http://localhost:4000/api/auth/verify?token=${token}`;
+    if (!nodemailer) {
+        console.log('Verify at:', url);
+        return;
+    }
+    const testAccount = await nodemailer.createTestAccount();
+    const transporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        auth: { user: testAccount.user, pass: testAccount.pass }
+    });
+    const info = await transporter.sendMail({
+        from: 'no-reply@example.com',
+        to: email,
+        subject: 'Verify your email',
+        html: `<a href="${url}">Verify Email</a>`,
+        text: `Verify your email: ${url}`
+    });
+    console.log('Verification email:', nodemailer.getTestMessageUrl(info));
+}
 
 function sign(u) {
     const secret = process.env.JWT_SECRET || 'change_me';
@@ -13,10 +42,12 @@ router.post('/register', async (req, res) => {
     if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
     const exists = await User.findOne({ email });
     if (exists) return res.status(409).json({ error: 'Email already in use' });
-    const u = new User({ name, email, phone });
+    const token = crypto.randomBytes(32).toString('hex');
+    const u = new User({ name, email, phone, verificationToken: token });
     await u.setPassword(password);
     await u.save();
-    res.json({ token: sign(u) });
+    await sendVerification(email, token);
+    res.json({ message: 'Check your email to verify your account' });
 });
 
 // POST /api/auth/login
@@ -25,6 +56,9 @@ router.post('/login', async (req, res) => {
     const u = await User.findOne({ email });
     if (!u || !(await u.comparePassword(password))) {
         return res.status(400).json({ error: 'Invalid email or password' });
+    }
+    if (!u.verified) {
+        return res.status(403).json({ error: 'Email not verified' });
     }
     res.json({ token: sign(u) });
 });
@@ -43,3 +77,15 @@ router.get('/me', async (req, res) => {
 });
 
 module.exports = router;
+
+// GET /api/auth/verify
+router.get('/verify', async (req, res) => {
+    const { token } = req.query || {};
+    if (!token) return res.status(400).json({ error: 'Missing token' });
+    const u = await User.findOne({ verificationToken: token });
+    if (!u) return res.status(400).json({ error: 'Invalid token' });
+    u.verified = true;
+    u.verificationToken = undefined;
+    await u.save();
+    res.json({ message: 'Email verified' });
+});

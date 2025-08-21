@@ -4,6 +4,7 @@ import Helpers from './pages/Helpers.jsx';
 import HelperDetail from './pages/HelperDetail.jsx';
 import Login from './pages/Login.jsx';
 import Signup from './pages/Signup.jsx';
+import Verify from './pages/Verify.jsx';
 import { useAuth } from './auth.jsx';
 import MyLeads from './pages/MyLeads.jsx';
 
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/myleads" element={<MyLeads />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/verify" element={<Verify />} />
 
           <Route
             path="/admin"

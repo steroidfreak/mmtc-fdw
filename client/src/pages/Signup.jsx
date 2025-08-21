@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import api from '../api';
-import { useAuth } from '../auth';
-import { useNavigate } from 'react-router-dom';
 
 export default function Signup() {
     const [name, setName] = useState('');
@@ -9,16 +7,14 @@ export default function Signup() {
     const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [err, setErr] = useState('');
-    const nav = useNavigate();
-    const { login } = useAuth();
+    const [sent, setSent] = useState(false);
 
     async function submit(e) {
         e.preventDefault();
         setErr('');
         try {
-            const { data } = await api.post('/auth/register', { name, email, phone, password });
-            login(data.token);
-            nav('/helpers');
+            await api.post('/auth/register', { name, email, phone, password });
+            setSent(true);
         } catch (e) {
             setErr(e?.response?.data?.error || 'Signup failed');
         }
@@ -32,7 +28,11 @@ export default function Signup() {
             <input placeholder="Phone (optional)" value={phone} onChange={e => setPhone(e.target.value)} />
             <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
             {err && <p style={{ color: 'crimson' }}>{err}</p>}
-            <button type="submit">Sign up</button>
+            {sent ? (
+                <p style={{ color: 'green' }}>Check your email to verify your account.</p>
+            ) : (
+                <button type="submit">Sign up</button>
+            )}
         </form>
     );
 }
