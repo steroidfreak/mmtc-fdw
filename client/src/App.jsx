@@ -10,6 +10,7 @@ import MyLeads from './pages/MyLeads.jsx';
 import AdminRoute from './components/adminRoute.jsx';
 import Dashboard from './pages/admin/Dashboard.jsx';
 import HelpersAdmin from './pages/admin/HelpersAdmin.jsx';
+import WhatsAppButton from './components/WhatsAppButton.jsx';
 
 export default function App() {
   const { me, logout } = useAuth();
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="helpers" element={<HelpersAdmin />} />
         </Route>
       </Routes>
+      <WhatsAppButton />
     </main>
   );
 }
