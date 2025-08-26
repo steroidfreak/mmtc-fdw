@@ -16,6 +16,7 @@ app.use('/api/helpers', require('./routes/helpers'));
 app.use('/api/leads', require('./routes/leads'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/chat', require('./routes/chat'));
 
 // 👉 add this:
 app.use('/api/admin', require('./routes/admin'));
