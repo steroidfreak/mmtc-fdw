@@ -1,6 +1,6 @@
 .chat-toggle {
   position: fixed;
-  bottom: 20px;
+  bottom: 80px;
   right: 20px;
   z-index: 1000;
   background: var(--color-primary);
@@ -17,7 +17,7 @@
 
 .chat-box {
   position: fixed;
-  bottom: 80px;
+  bottom: 140px;
   right: 20px;
   width: 320px;
   height: 400px;
@@ -83,4 +83,17 @@
 .msg.bot .bubble {
   background: #eee;
   color: #333;
+}
+
+@media (max-width: 600px) {
+  .chat-toggle {
+    right: 16px;
+    bottom: 80px;
+  }
+
+  .chat-box {
+    right: 16px;
+    bottom: 140px;
+    width: calc(100% - 32px);
+  }
 }
