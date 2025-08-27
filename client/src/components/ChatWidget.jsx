@@ -28,7 +28,7 @@ export default function ChatWidget() {
   };
 
   return (
-    <div>
+    <div className="chat-widget">
       <button className="chat-toggle" onClick={() => setOpen(o => !o)}>
         {open ? 'Close' : 'Chat'}
       </button>
@@ -36,7 +36,7 @@ export default function ChatWidget() {
         <div className="chat-box">
           <div className="chat-messages">
             {messages.map((m, i) => (
-              <div key={i} className={`msg ${m.from}`}>{m.text}</div>
+              <div key={i} className={`chat-msg ${m.from}`}>{m.text}</div>
             ))}
           </div>
           <div className="chat-input">
