@@ -14,10 +14,14 @@ export default function ChatWidget() {
     setInput('');
     try {
       const res = await api.post('/chat', { message: userText });
-      const { helpers, explanation } = res.data;
-      const helperLines = helpers.map(h => `${h.name} (${h.nationality}) - ${h.skills.join(', ')}`).join('\n');
-      const reply = `${explanation}\n\n${helperLines}`;
-      setMessages(m => [...m, { from: 'bot', text: reply }]);
+      const { helpers, explanation, answer } = res.data;
+      if (answer) {
+        setMessages(m => [...m, { from: 'bot', text: answer }]);
+      } else {
+        const helperLines = helpers.map(h => `${h.name} (${h.nationality}) - ${h.skills.join(', ')}`).join('\n');
+        const reply = `${explanation}\n\n${helperLines}`;
+        setMessages(m => [...m, { from: 'bot', text: reply }]);
+      }
     } catch {
       setMessages(m => [...m, { from: 'bot', text: 'Sorry, I could not get recommendations.' }]);
     }
@@ -40,7 +44,7 @@ export default function ChatWidget() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && send()}
-              placeholder="Tell me your requirements..."
+              placeholder="Ask anything or tell me your helper needs..."
             />
             <button onClick={send}>Send</button>
           </div>

@@ -1,5 +1,6 @@
 // client/src/components/HelperCard.jsx
 import { Link } from 'react-router-dom';
+import './HelperCard.css';
 
 const API_BASE = import.meta?.env?.VITE_API_BASE_URL || 'http://localhost:4000';
 
@@ -28,32 +29,34 @@ export default function HelperCard({ h, shortlisted, onToggle }) {
     const photo = getPhotoUrl(h);
 
     return (
-        <div style={{ border: '1px solid #eee', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="helper-card">
             <img
                 src={photo}
                 alt={h.name}
                 loading="lazy"
                 onError={(e) => { e.currentTarget.src = '/placeholder-helper.png'; }}
-                style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb', alignSelf: 'center' }}
             />
 
-            <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                <h3 style={{ margin: 0, fontSize: 16 }}>{h.name}</h3>
-                <span style={{ color: '#666', fontSize: 13 }}>
+            <div className="helper-card-header">
+                <h3>{h.name}</h3>
+                <span>
                     {h.age ? `${h.age} yrs` : ''}{h.age && h.nationality ? ' • ' : ''}{h.nationality || ''}
                 </span>
             </div>
 
-            <div style={{ color: '#555', fontSize: 13 }}>
+            <div className="helper-card-skills">
                 {Array.isArray(h.skills) && h.skills.length ? h.skills.slice(0, 4).join(', ') : '—'}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
-                <Link to={`/helpers/${h._id}`} style={{ fontSize: 14 }}>View</Link>
-                <span style={{ marginLeft: 'auto', fontSize: 13, color: h.availability ? 'green' : '#999' }}>
+            <div className="helper-card-actions">
+                <Link to={`/helpers/${h._id}`}>View</Link>
+                <span
+                    className="helper-availability"
+                    style={{ color: h.availability ? 'green' : '#999' }}
+                >
                     {h.availability ? 'Available' : 'Not available'}
                 </span>
-                <button onClick={() => onToggle(h._id)} style={{ fontSize: 14 }}>
+                <button onClick={() => onToggle(h._id)}>
                     {shortlisted ? '★ Shortlisted' : '☆ Shortlist'}
                 </button>
             </div>

@@ -11,6 +11,24 @@ router.post('/', async (req, res) => {
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
     try {
+        // determine if the user is looking for a helper or just general info
+        const intentRes = await openai.responses.create({
+            model: 'gpt-5',
+            input: `User message: "${message}"\nRespond with JSON {"mode":"helper"} if the user wants to find a domestic helper, otherwise respond with {"mode":"general"}.`
+        });
+        let intent = 'helper';
+        try {
+            intent = JSON.parse(intentRes.output_text).mode || 'helper';
+        } catch {}
+
+        if (intent === 'general') {
+            const answerRes = await openai.responses.create({
+                model: 'gpt-5',
+                input: `You are a helpful assistant. Respond to: ${message}`
+            });
+            return res.json({ answer: answerRes.output_text });
+        }
+
         const analysis = await openai.responses.create({
             model: 'gpt-5',
             input: `Extract helper search criteria from the following user message and respond as JSON with keys: nationality, minAge, maxAge, minExperience, skills (array). If not specified, use null.\n\n${message}`
@@ -43,7 +61,7 @@ router.post('/', async (req, res) => {
         res.json({ helpers, explanation: explanationRes.output_text });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Failed to get recommendation' });
+        res.status(500).json({ error: 'Failed to process message' });
     }
 });
 
