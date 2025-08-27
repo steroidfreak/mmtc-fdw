@@ -21,7 +21,7 @@ router.post('/', async (req, res) => {
         if (!isHelperQuery) {
             // General assistant mode
             const stream = await openai.chat.completions.create({
-                model: 'gpt-4o-mini',
+                model: 'gpt-5',
                 messages: [{ role: 'user', content: message }],
                 stream: true,
             });
@@ -35,7 +35,7 @@ router.post('/', async (req, res) => {
 
         // Helper search mode
         const analysis = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: 'gpt-5',
             messages: [
                 {
                     role: 'system',
@@ -70,7 +70,7 @@ router.post('/', async (req, res) => {
             .join('\n');
 
         const stream = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: 'gpt-5',
             messages: [
                 {
                     role: 'user',
