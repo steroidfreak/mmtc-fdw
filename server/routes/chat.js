@@ -10,14 +10,46 @@ router.post('/', async (req, res) => {
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
+    // Prepare headers for streaming text response
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Connection', 'keep-alive');
+
     try {
-        const analysis = await openai.responses.create({
-            model: 'gpt-5',
-            input: `Extract helper search criteria from the following user message and respond as JSON with keys: nationality, minAge, maxAge, minExperience, skills (array). If not specified, use null.\n\n${message}`
+        const isHelperQuery = /helper|maid/i.test(message);
+
+        if (!isHelperQuery) {
+            // General assistant mode
+            const stream = await openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: message }],
+                stream: true,
+            });
+
+            for await (const part of stream) {
+                const token = part.choices[0]?.delta?.content || '';
+                res.write(token);
+            }
+            return res.end();
+        }
+
+        // Helper search mode
+        const analysis = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                {
+                    role: 'system',
+                    content:
+                        'Extract helper search criteria from the following user message and respond as JSON with keys: nationality, minAge, maxAge, minExperience, skills (array). If not specified, use null.',
+                },
+                { role: 'user', content: message },
+            ],
+            response_format: { type: 'json_object' },
         });
+
         let filters = {};
         try {
-            filters = JSON.parse(analysis.output_text);
+            filters = JSON.parse(analysis.choices[0]?.message?.content ?? '{}');
         } catch {
             filters = {};
         }
@@ -33,17 +65,36 @@ router.post('/', async (req, res) => {
         }
 
         const helpers = await Helper.find(query).limit(3).lean();
+        const summary = helpers
+            .map(h => `${h.name}, ${h.age} years old ${h.nationality}, skills: ${h.skills.join(', ')}`)
+            .join('\n');
 
-        const summary = helpers.map(h => `${h.name}, ${h.age} years old ${h.nationality}, skills: ${h.skills.join(', ')}`).join('\n');
-        const explanationRes = await openai.responses.create({
-            model: 'gpt-5',
-            input: `User request: ${message}\n\nHelpers:\n${summary}\n\nExplain concisely why these helpers match the request.`
+        const stream = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                {
+                    role: 'user',
+                    content: `User request: ${message}\n\nHelpers:\n${summary}\n\nExplain concisely why these helpers match the request.`,
+                },
+            ],
+            stream: true,
         });
 
-        res.json({ helpers, explanation: explanationRes.output_text });
+        for await (const part of stream) {
+            const token = part.choices[0]?.delta?.content || '';
+            res.write(token);
+        }
+
+        const helperLines = helpers
+            .map(h => `${h.name} (${h.nationality}) - ${h.skills.join(', ')}`)
+            .join('\n');
+        res.write(`\n\n${helperLines}`);
+        return res.end();
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Failed to get recommendation' });
+        res.status(500);
+        res.write('Sorry, I could not get recommendations.');
+        return res.end();
     }
 });
 
