@@ -6,20 +6,38 @@ export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const baseURL = api.defaults.baseURL;
 
   const send = async () => {
     if (!input.trim()) return;
     const userText = input;
-    setMessages(m => [...m, { from: 'user', text: userText }]);
+    setMessages(m => [...m, { from: 'user', text: userText }, { from: 'bot', text: '' }]);
     setInput('');
     try {
-      const res = await api.post('/chat', { message: userText });
-      const { helpers, explanation } = res.data;
-      const helperLines = helpers.map(h => `${h.name} (${h.nationality}) - ${h.skills.join(', ')}`).join('\n');
-      const reply = `${explanation}\n\n${helperLines}`;
-      setMessages(m => [...m, { from: 'bot', text: reply }]);
+      const res = await fetch(`${baseURL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userText })
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let botText = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        botText += decoder.decode(value, { stream: true });
+        setMessages(m => {
+          const updated = [...m];
+          updated[updated.length - 1] = { from: 'bot', text: botText };
+          return updated;
+        });
+      }
     } catch {
-      setMessages(m => [...m, { from: 'bot', text: 'Sorry, I could not get recommendations.' }]);
+      setMessages(m => {
+        const updated = [...m];
+        updated[updated.length - 1] = { from: 'bot', text: 'Sorry, I could not get recommendations.' };
+        return updated;
+      });
     }
   };
 
@@ -32,7 +50,9 @@ export default function ChatWidget() {
         <div className="chat-box">
           <div className="chat-messages">
             {messages.map((m, i) => (
-              <div key={i} className={`msg ${m.from}`}>{m.text}</div>
+              <div key={i} className={`msg ${m.from}`}>
+                <div className="bubble">{m.text}</div>
+              </div>
             ))}
           </div>
           <div className="chat-input">
