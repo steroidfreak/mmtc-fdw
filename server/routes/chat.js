@@ -12,7 +12,7 @@ router.post('/', async (req, res) => {
 
     try {
         const analysis = await openai.responses.create({
-            model: 'gpt-4.1-mini',
+            model: 'gpt-5',
             input: `Extract helper search criteria from the following user message and respond as JSON with keys: nationality, minAge, maxAge, minExperience, skills (array). If not specified, use null.\n\n${message}`
         });
         let filters = {};
@@ -36,7 +36,7 @@ router.post('/', async (req, res) => {
 
         const summary = helpers.map(h => `${h.name}, ${h.age} years old ${h.nationality}, skills: ${h.skills.join(', ')}`).join('\n');
         const explanationRes = await openai.responses.create({
-            model: 'gpt-4.1-mini',
+            model: 'gpt-5',
             input: `User request: ${message}\n\nHelpers:\n${summary}\n\nExplain concisely why these helpers match the request.`
         });
 
