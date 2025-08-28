@@ -14,14 +14,17 @@ const {
 
 const policyConn = mongoose.createConnection(MONGODB_URI_POLICY);
 
-const MdwChunkSchema = new mongoose.Schema({
-    source: { type: String, default: 'pdf' },
-    title: { type: String, required: true },
-    chunkIndex: { type: Number, required: true },
-    text: { type: String, required: true },
-    embedding: { type: [Number], required: true },
-    createdAt: { type: Date, default: Date.now }
-}, { collection: 'mdw_chunks' });
+const MdwChunkSchema = new mongoose.Schema(
+    {
+        source: { type: String, default: 'pdf' },
+        title: { type: String, required: true },
+        chunkIndex: { type: Number, required: true },
+        text: { type: String, required: true },
+        embedding: { type: [Number], required: true },
+        createdAt: { type: Date, default: Date.now }
+    },
+    { collection: 'mdw_chunks' }
+);
 
 const MdwChunk = policyConn.model('MdwChunk', MdwChunkSchema);
 
@@ -60,7 +63,7 @@ async function loadMdwIndexOnce() {
         text: c.text,
         title: c.title,
         chunkIndex: c.chunkIndex,
-        vec: normalize(c.embedding) // model already normalized, this is harmless
+        vec: normalize(c.embedding) // model is already normalized; safe to re-normalize
     }));
     MDW_READY = MDW_INDEX.length > 0;
     console.log(`[mdw_policy] loaded ${MDW_INDEX.length} chunks`);
@@ -79,16 +82,19 @@ function buildMdwPrompt(question, passages) {
     const sourcesBlock = passages
         .map((p, i) => `Source ${i + 1} (score ${p.score.toFixed(3)}):\n${p.text}`)
         .join('\n\n');
+
     const system =
         `You are a helpful assistant for Singapore employers about hiring Migrant Domestic Workers (MDWs).
 Answer conversationally and accurately using ONLY the provided sources.
 If the sources don't contain the answer, say you don't have that info and suggest checking the MOM website.
 Cite snippets by saying "Source 1/2/3". Do not fabricate policy.`;
+
     const user =
         `Question: ${question}
 
 Relevant sources:
 ${sourcesBlock}`;
+
     return { system, user };
 }
 
@@ -110,11 +116,8 @@ router.post('/', async (req, res) => {
         const isMdwPolicyQuery = MDW_POLICY_REGEX.test(message);
 
         // ===== Branch 1: Helper search =====
-
         if (mode === 'helper' || (!mode && isHelperQuery)) {
-
-        if (isHelperQuery) {
-
+            // extract filters via LLM
             const analysis = await openai.chat.completions.create({
                 model: 'gpt-5',
                 messages: [
@@ -130,7 +133,7 @@ router.post('/', async (req, res) => {
 
             let filters = {};
             try {
-                filters = JSON.parse(analysis.choices[0]?.message?.content ?? '{}');
+                filters = JSON.parse(analysis.choices?.[0]?.message?.content ?? '{}');
             } catch {
                 filters = {};
             }
@@ -141,7 +144,7 @@ router.post('/', async (req, res) => {
             if (filters.minAge) query.age.$gte = filters.minAge;
             if (filters.maxAge) query.age.$lte = filters.maxAge;
             if (filters.minExperience) query.experience = { $gte: filters.minExperience };
-            if (filters.skills && filters.skills.length) {
+            if (filters.skills && Array.isArray(filters.skills) && filters.skills.length) {
                 query.skills = { $all: filters.skills.map(s => new RegExp(s, 'i')) };
             }
 
@@ -150,8 +153,9 @@ router.post('/', async (req, res) => {
                 res.write('contact desmond @ +65 82000631');
                 return res.end();
             }
+
             const summary = helpers
-                .map(h => `${h.name}, ${h.age} years old ${h.nationality}, skills: ${h.skills.join(', ')}`)
+                .map(h => `${h.name}, ${h.age} years old ${h.nationality}, skills: ${(h.skills || []).join(', ')}`)
                 .join('\n');
 
             const stream = await openai.chat.completions.create({
@@ -166,23 +170,19 @@ router.post('/', async (req, res) => {
             });
 
             for await (const part of stream) {
-                const token = part.choices[0]?.delta?.content || '';
-                res.write(token);
+                const token = part.choices?.[0]?.delta?.content || '';
+                if (token) res.write(token);
             }
 
             const helperLines = helpers
-                .map(h => `${h.name} (${h.nationality}) - ${h.skills.join(', ')}`)
+                .map(h => `${h.name} (${h.nationality}) - ${(h.skills || []).join(', ')}`)
                 .join('\n');
             res.write(`\n\n${helperLines}`);
             return res.end();
         }
 
         // ===== Branch 2: MDW Policy (PDF-first RAG on mdw_policy) =====
-
         if (mode === 'policy' || (!mode && isMdwPolicyQuery)) {
-
-        if (isMdwPolicyQuery) {
-
             const top = await searchMdw(message, 5);
             if (!top.length) {
                 res.write('contact desmond @ +65 82000631');
@@ -190,7 +190,6 @@ router.post('/', async (req, res) => {
             }
             const { system, user } = buildMdwPrompt(message, top);
 
-
             const stream = await openai.chat.completions.create({
                 model: 'gpt-5',
                 messages: [
@@ -204,23 +203,6 @@ router.post('/', async (req, res) => {
                 const token = part.choices?.[0]?.delta?.content || '';
                 if (token) res.write(token);
             }
-
-
-
-            const stream = await openai.chat.completions.create({
-                model: 'gpt-5',
-                messages: [
-                    { role: 'system', content: system },
-                    { role: 'user', content: user }
-                ],
-                stream: true
-            });
-
-            for await (const part of stream) {
-                const token = part.choices?.[0]?.delta?.content || '';
-                if (token) res.write(token);
-            }
-
 
             const srcLines = top
                 .map((p, i) => `\n[Source ${i + 1}] ${p.title || 'MDW Guide'} — chunk #${p.chunkIndex} (score ${p.score.toFixed(3)})`)
@@ -232,12 +214,16 @@ router.post('/', async (req, res) => {
         // ===== Fallback =====
         res.write('contact desmond @ +65 82000631');
         return res.end();
-
     } catch (err) {
         console.error(err);
-        res.status(500);
-        res.write('contact desmond @ +65 82000631');
-        return res.end();
+        // Important: make sure we end the chunked response even on errors
+        try {
+            res.statusCode = 500;
+            res.write('contact desmond @ +65 82000631');
+            return res.end();
+        } catch {
+            // noop: connection may already be closed
+        }
     }
 });
 
