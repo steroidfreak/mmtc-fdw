@@ -10,7 +10,7 @@ import ResetPassword from './pages/ResetPassword.jsx';
 import { useAuth } from './auth.jsx';
 import MyLeads from './pages/MyLeads.jsx';
 
-import AdminRoute from './components/adminRoute.jsx';
+import AdminRoute from './components/AdminRoute.jsx';
 import Dashboard from './pages/admin/Dashboard.jsx';
 import HelpersAdmin from './pages/admin/HelpersAdmin.jsx';
 import RegisteredUsersAdmin from './pages/admin/RegisteredUsersAdmin.jsx';
@@ -22,24 +22,61 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <header className="app-header">
-        <h2>MMTC</h2>
-        <Link to="/">Home</Link>
-        <Link to="/helpers">Helpers</Link>
-        <Link to="/myleads">My Leads</Link>
-        {(me?.role === 'staff' || me?.role === 'admin') && <Link to="/admin/helpers">Admin</Link>}
-        {me ? (
-          <>
-            <span>Hi, {me.name}</span>
-            <button onClick={logout}>Logout</button>
-          </>
-        ) : (
-          <>
-            <Link to="/login">Login</Link>
-            <Link to="/signup">Sign up</Link>
-          </>
-        )}
-      </header>
+      <nav className="navbar navbar-expand-lg navbar-dark bg-primary app-header">
+        <div className="container-fluid">
+          <Link className="navbar-brand" to="/">MMTC</Link>
+          <button
+            className="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarNav"
+            aria-controls="navbarNav"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span className="navbar-toggler-icon"></span>
+          </button>
+          <div className="collapse navbar-collapse" id="navbarNav">
+            <ul className="navbar-nav ms-auto">
+              <li className="nav-item">
+                <Link className="nav-link" to="/">Home</Link>
+              </li>
+              <li className="nav-item">
+                <Link className="nav-link" to="/helpers">Helpers</Link>
+              </li>
+              <li className="nav-item">
+                <Link className="nav-link" to="/myleads">My Leads</Link>
+              </li>
+              {(me?.role === 'staff' || me?.role === 'admin') && (
+                <li className="nav-item">
+                  <Link className="nav-link" to="/admin/helpers">Admin</Link>
+                </li>
+              )}
+              {me ? (
+                <>
+                  <li className="nav-item">
+                    <span className="navbar-text me-2">Hi, {me.name}</span>
+                  </li>
+                  <li className="nav-item">
+                    <button className="btn btn-light btn-sm" onClick={logout}>
+                      Logout
+                    </button>
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li className="nav-item">
+                    <Link className="nav-link" to="/login">Login</Link>
+                  </li>
+                  <li className="nav-item">
+                    <Link className="nav-link" to="/signup">Sign up</Link>
+                  </li>
+                </>
+              )}
+            </ul>
+          </div>
+        </div>
+      </nav>
 
       <main className="app-content">
         <Routes>
