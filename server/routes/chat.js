@@ -97,7 +97,7 @@ const MDW_POLICY_REGEX = /\b(mdws?|migrant domestic|work permit|levy|security bo
 
 // ------------------- main route -------------------
 router.post('/', async (req, res) => {
-    const { message } = req.body;
+    const { message, mode } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
     // stream headers
@@ -110,7 +110,11 @@ router.post('/', async (req, res) => {
         const isMdwPolicyQuery = MDW_POLICY_REGEX.test(message);
 
         // ===== Branch 1: Helper search =====
+
+        if (mode === 'helper' || (!mode && isHelperQuery)) {
+
         if (isHelperQuery) {
+
             const analysis = await openai.chat.completions.create({
                 model: 'gpt-5',
                 messages: [
@@ -174,13 +178,18 @@ router.post('/', async (req, res) => {
         }
 
         // ===== Branch 2: MDW Policy (PDF-first RAG on mdw_policy) =====
+
+        if (mode === 'policy' || (!mode && isMdwPolicyQuery)) {
+
         if (isMdwPolicyQuery) {
+
             const top = await searchMdw(message, 5);
             if (!top.length) {
                 res.write('contact desmond @ +65 82000631');
                 return res.end();
             }
             const { system, user } = buildMdwPrompt(message, top);
+
 
             const stream = await openai.chat.completions.create({
                 model: 'gpt-5',
@@ -195,6 +204,23 @@ router.post('/', async (req, res) => {
                 const token = part.choices?.[0]?.delta?.content || '';
                 if (token) res.write(token);
             }
+
+
+
+            const stream = await openai.chat.completions.create({
+                model: 'gpt-5',
+                messages: [
+                    { role: 'system', content: system },
+                    { role: 'user', content: user }
+                ],
+                stream: true
+            });
+
+            for await (const part of stream) {
+                const token = part.choices?.[0]?.delta?.content || '';
+                if (token) res.write(token);
+            }
+
 
             const srcLines = top
                 .map((p, i) => `\n[Source ${i + 1}] ${p.title || 'MDW Guide'} — chunk #${p.chunkIndex} (score ${p.score.toFixed(3)})`)
