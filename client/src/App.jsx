@@ -11,6 +11,7 @@ import MyLeads from './pages/MyLeads.jsx';
 import AdminRoute from './components/adminRoute.jsx';
 import Dashboard from './pages/admin/Dashboard.jsx';
 import HelpersAdmin from './pages/admin/HelpersAdmin.jsx';
+import RegisteredUsersAdmin from './pages/admin/RegisteredUsersAdmin.jsx';
 import WhatsAppButton from './components/WhatsAppButton.jsx';
 import ChatWidget from './components/ChatWidget.jsx';
 
@@ -57,6 +58,7 @@ export default function App() {
             }
           >
             <Route path="helpers" element={<HelpersAdmin />} />
+            <Route path="users" element={<RegisteredUsersAdmin />} />
           </Route>
         </Routes>
         <WhatsAppButton />
