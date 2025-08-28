@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import api from '../api';
 import { useAuth } from '../auth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -29,6 +29,7 @@ export default function Login() {
             <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
             {err && <p style={{ color: 'crimson' }}>{err}</p>}
             <button type="submit">Login</button>
+            <p><Link to="/forgot-password">Forgot password?</Link></p>
         </form>
     );
 }

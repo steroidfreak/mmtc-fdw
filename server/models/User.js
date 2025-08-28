@@ -12,6 +12,10 @@ const UserSchema = new mongoose.Schema({
     // email verification
     verified: { type: Boolean, default: false },
     verificationToken: { type: String, default: null },
+
+    // password reset
+    passwordResetToken: { type: String, default: null },
+    passwordResetExpires: { type: Date, default: null },
 }, { timestamps: true });
 
 UserSchema.methods.setPassword = async function (password) {
