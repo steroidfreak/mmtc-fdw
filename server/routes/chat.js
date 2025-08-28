@@ -113,7 +113,11 @@ router.post('/', async (req, res) => {
 
         if (mode === 'helper' || (!mode && isHelperQuery)) {
 
+
+        if (mode === 'helper' || (!mode && isHelperQuery)) {
+
         if (isHelperQuery) {
+
 
             const analysis = await openai.chat.completions.create({
                 model: 'gpt-5',
@@ -150,32 +154,51 @@ router.post('/', async (req, res) => {
                 res.write('contact desmond @ +65 82000631');
                 return res.end();
             }
+
+            const formatted = helpers
+                .map(
+                    h => `- ${h.name} (${h.age}, ${h.nationality}) — ${h.skills.join(', ')}`
+                )
+
             const summary = helpers
                 .map(h => `${h.name}, ${h.age} years old ${h.nationality}, skills: ${h.skills.join(', ')}`)
+
                 .join('\n');
+            res.write(formatted);
+            return res.end();
+        }
+
+        // ===== Branch 2: MDW Policy (PDF-first RAG on mdw_policy) =====
+        if (mode === 'policy' || (!mode && isMdwPolicyQuery)) {
+            const top = await searchMdw(message, 5);
+            if (!top.length) {
+                res.write('contact desmond @ +65 82000631');
+                return res.end();
+            }
+            const { system, user } = buildMdwPrompt(message, top);
 
             const stream = await openai.chat.completions.create({
                 model: 'gpt-5',
                 messages: [
-                    {
-                        role: 'user',
-                        content: `User request: ${message}\n\nHelpers:\n${summary}\n\nExplain concisely why these helpers match the request.`
-                    }
+                    { role: 'system', content: system },
+                    { role: 'user', content: user }
                 ],
                 stream: true
             });
 
             for await (const part of stream) {
-                const token = part.choices[0]?.delta?.content || '';
-                res.write(token);
+                const token = part.choices?.[0]?.delta?.content || '';
+                if (token) res.write(token);
             }
 
-            const helperLines = helpers
-                .map(h => `${h.name} (${h.nationality}) - ${h.skills.join(', ')}`)
-                .join('\n');
-            res.write(`\n\n${helperLines}`);
+            const srcLines = top
+                .map((p, i) => `\n[Source ${i + 1}] ${p.title || 'MDW Guide'} — chunk #${p.chunkIndex} (score ${p.score.toFixed(3)})`)
+                .join('');
+            res.write(`\n${srcLines}`);
             return res.end();
         }
+
+
 
         // ===== Branch 2: MDW Policy (PDF-first RAG on mdw_policy) =====
 
@@ -228,6 +251,7 @@ router.post('/', async (req, res) => {
             res.write(`\n${srcLines}`);
             return res.end();
         }
+
 
         // ===== Fallback =====
         res.write('contact desmond @ +65 82000631');
