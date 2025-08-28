@@ -3,6 +3,7 @@ const router = require('express').Router();
 const auth = require('../middleware/auth');
 const staffOnly = require('../middleware/staffOnly');
 const Helper = require('../models/Helper');
+const RegisteredUser = require('../models/RegisteredUser');
 
 // --- Upload deps/setup (MUST be before routes) ---
 const fs = require('fs');
@@ -130,6 +131,94 @@ router.delete('/helpers/:id', auth(), staffOnly, async (req, res) => {
         return res.json({ success: true, data: { ok: true } });
     } catch (err) {
         console.error('DELETE /admin/helpers/:id error:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+/**
+ * Registered Users Admin CRUD
+ */
+
+// GET /api/admin/users?q=&page=&limit=
+router.get('/users', auth(), staffOnly, async (req, res) => {
+    try {
+        const { q } = req.query;
+        const page = Math.max(parseInt(req.query.page ?? '1', 10), 1);
+        const limit = Math.max(Math.min(parseInt(req.query.limit ?? '20', 10), 100), 1);
+        const skip = (page - 1) * limit;
+
+        const filter = {};
+        if (q) {
+            const regex = new RegExp(String(q).trim(), 'i');
+            filter.$or = [{ name: regex }, { email: regex }];
+        }
+
+        const [items, total] = await Promise.all([
+            RegisteredUser.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit),
+            RegisteredUser.countDocuments(filter),
+        ]);
+
+        return res.json({
+            success: true,
+            data: items,
+            meta: { page, limit, total, pages: Math.max(Math.ceil(total / limit), 1) },
+        });
+    } catch (err) {
+        console.error('GET /admin/users error:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// GET /api/admin/users/:id
+router.get('/users/:id', auth(), staffOnly, async (req, res) => {
+    try {
+        const doc = await RegisteredUser.findById(req.params.id);
+        if (!doc) return res.status(404).json({ success: false, error: 'Not found' });
+        return res.json({ success: true, data: doc });
+    } catch (err) {
+        console.error('GET /admin/users/:id error:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// POST /api/admin/users
+router.post('/users', auth(), staffOnly, async (req, res) => {
+    try {
+        const { name, email, phone = '', address = '' } = req.body || {};
+        if (!name || !email) {
+            return res.status(400).json({ success: false, error: 'name and email are required' });
+        }
+        const doc = await RegisteredUser.create({ name, email, phone, address });
+        return res.status(201).json({ success: true, data: doc });
+    } catch (err) {
+        console.error('POST /admin/users error:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// PUT /api/admin/users/:id
+router.put('/users/:id', auth(), staffOnly, async (req, res) => {
+    try {
+        const allowed = ['name', 'email', 'phone', 'address'];
+        const patch = {};
+        for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
+        const doc = await RegisteredUser.findByIdAndUpdate(req.params.id, patch, { new: true });
+        if (!doc) return res.status(404).json({ success: false, error: 'Not found' });
+        return res.json({ success: true, data: doc });
+    } catch (err) {
+        console.error('PUT /admin/users/:id error:', err);
+        return res.status(500).json({ success: false, error: 'Server error' });
+    }
+});
+
+// DELETE /api/admin/users/:id
+router.delete('/users/:id', auth(), staffOnly, async (req, res) => {
+    try {
+        const doc = await RegisteredUser.findByIdAndDelete(req.params.id);
+        if (!doc) return res.status(404).json({ success: false, error: 'Not found' });
+        return res.json({ success: true, data: { ok: true } });
+    } catch (err) {
+        console.error('DELETE /admin/users/:id error:', err);
         return res.status(500).json({ success: false, error: 'Server error' });
     }
 });
