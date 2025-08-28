@@ -36,6 +36,21 @@
   overflow-y: auto;
 }
 
+.bubble-options {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.bubble-options button {
+  border: none;
+  padding: 6px 12px;
+  border-radius: 16px;
+  background: var(--color-primary);
+  color: #fff;
+  cursor: pointer;
+}
+
 .chat-input {
   display: flex;
   border-top: 1px solid var(--color-border);
