@@ -97,7 +97,7 @@ const MDW_POLICY_REGEX = /\b(mdws?|migrant domestic|work permit|levy|security bo
 
 // ------------------- main route -------------------
 router.post('/', async (req, res) => {
-    const { message } = req.body;
+    const { message, mode } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
     // stream headers
@@ -109,39 +109,8 @@ router.post('/', async (req, res) => {
         const isHelperQuery = /helper|maid/i.test(message);
         const isMdwPolicyQuery = MDW_POLICY_REGEX.test(message);
 
-        // ===== Branch 1: MDW Policy (PDF-first RAG on mdw_policy) =====
-        if (isMdwPolicyQuery) {
-            const top = await searchMdw(message, 5);
-            const { system, user } = buildMdwPrompt(message, top);
-
-            const stream = await openai.chat.completions.create({
-                model: 'gpt-5',
-                messages: [
-                    { role: 'system', content: system },
-                    { role: 'user', content: user }
-                ],
-                stream: true
-            });
-
-            for await (const part of stream) {
-                const token = part.choices?.[0]?.delta?.content || '';
-                if (token) res.write(token);
-            }
-
-            if (top.length) {
-                const srcLines = top
-                    .map((p, i) => `\n[Source ${i + 1}] ${p.title || 'MDW Guide'} — chunk #${p.chunkIndex} (score ${p.score.toFixed(3)})`)
-                    .join('');
-                res.write(`\n${srcLines}`);
-            } else {
-                res.write(`\n(No relevant PDF sources found. Please verify on the MOM website.)`);
-            }
-
-            return res.end();
-        }
-
-        // ===== Branch 2: Helper search (your original) =====
-        if (isHelperQuery) {
+        // ===== Branch 1: Helper search =====
+        if (mode === 'helper' || (!mode && isHelperQuery)) {
             const analysis = await openai.chat.completions.create({
                 model: 'gpt-5',
                 messages: [
@@ -173,6 +142,10 @@ router.post('/', async (req, res) => {
             }
 
             const helpers = await Helper.find(query).limit(3).lean();
+            if (!helpers.length) {
+                res.write('contact desmond @ +65 82000631');
+                return res.end();
+            }
             const summary = helpers
                 .map(h => `${h.name}, ${h.age} years old ${h.nationality}, skills: ${h.skills.join(', ')}`)
                 .join('\n');
@@ -200,23 +173,44 @@ router.post('/', async (req, res) => {
             return res.end();
         }
 
-        // ===== Branch 3: General assistant =====
-        const stream = await openai.chat.completions.create({
-            model: 'gpt-5',
-            messages: [{ role: 'user', content: message }],
-            stream: true
-        });
+        // ===== Branch 2: MDW Policy (PDF-first RAG on mdw_policy) =====
+        if (mode === 'policy' || (!mode && isMdwPolicyQuery)) {
+            const top = await searchMdw(message, 5);
+            if (!top.length) {
+                res.write('contact desmond @ +65 82000631');
+                return res.end();
+            }
+            const { system, user } = buildMdwPrompt(message, top);
 
-        for await (const part of stream) {
-            const token = part.choices[0]?.delta?.content || '';
-            res.write(token);
+            const stream = await openai.chat.completions.create({
+                model: 'gpt-5',
+                messages: [
+                    { role: 'system', content: system },
+                    { role: 'user', content: user }
+                ],
+                stream: true
+            });
+
+            for await (const part of stream) {
+                const token = part.choices?.[0]?.delta?.content || '';
+                if (token) res.write(token);
+            }
+
+            const srcLines = top
+                .map((p, i) => `\n[Source ${i + 1}] ${p.title || 'MDW Guide'} — chunk #${p.chunkIndex} (score ${p.score.toFixed(3)})`)
+                .join('');
+            res.write(`\n${srcLines}`);
+            return res.end();
         }
+
+        // ===== Fallback =====
+        res.write('contact desmond @ +65 82000631');
         return res.end();
 
     } catch (err) {
         console.error(err);
         res.status(500);
-        res.write('Sorry, I could not get recommendations.');
+        res.write('contact desmond @ +65 82000631');
         return res.end();
     }
 });
