@@ -18,6 +18,8 @@ export default function HelpersAdmin() {
     const [openId, setOpenId] = useState(undefined);
     const [refreshKey, setRefreshKey] = useState(0); // force re-mount of form
 
+    // keep track of whether we are editing or creating
+
     // Portal target set after mount to support SSR
     const [portalTarget, setPortalTarget] = useState(null);
     useEffect(() => {
@@ -106,20 +108,29 @@ export default function HelpersAdmin() {
         load(page, limit);
     }
 
-    // close the modal when pressing the Escape key
-    useEffect(() => {
-        if (openId === undefined) return;
-        function handleKey(e) {
-            if (e.key === 'Escape') closeForm();
-        }
-        window.addEventListener('keydown', handleKey);
-        return () => window.removeEventListener('keydown', handleKey);
-    }, [openId]);
 
     const gotoFirst = () => canPrev && load(1, limit);
     const gotoPrev = () => canPrev && load(page - 1, limit);
     const gotoNext = () => canNext && load(page + 1, limit);
     const gotoLast = () => canNext && load(meta.pages, limit);
+
+    if (openId !== undefined) {
+        return (
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                    <button className="border px-3 py-2" onClick={closeForm}>← Back</button>
+                    <h2 className="text-xl font-semibold">
+                        {openId ? 'Edit Helper' : 'Create Helper'}
+                    </h2>
+                </div>
+                <HelperForm
+                    key={refreshKey}
+                    helperId={openId || undefined}
+                    onSaved={onSaved}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-4">
@@ -268,39 +279,6 @@ export default function HelpersAdmin() {
                     Last ⏭
                 </button>
             </div>
-
-            {/* Modal (Portal) */}
-            {openId !== undefined && portalTarget &&
-                createPortal(
-                    <div
-                        className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[999999]"
-                        onClick={closeForm}
-                        role="dialog"
-                        aria-modal="true"
-                    >
-                        <div
-                            className="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-lg font-semibold">
-                                    {openId ? 'Edit Helper' : 'Create Helper'}
-                                </h3>
-                                <button className="text-gray-600" onClick={closeForm} aria-label="Close">
-                                    ✕
-                                </button>
-                            </div>
-
-                            <HelperForm
-                                key={refreshKey}
-                                helperId={openId || undefined}
-                                onSaved={onSaved}
-                            />
-                        </div>
-                    </div>,
-                    portalTarget
-                )
-            }
         </div>
     );
 }
