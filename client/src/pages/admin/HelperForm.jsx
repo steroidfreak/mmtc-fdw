@@ -103,6 +103,23 @@ export default function HelperForm({ helperId, onSaved }) {
         });
     }
 
+    // Remove an existing (already uploaded) photo
+    async function removeExistingPhoto(index) {
+        if (!isEdit) return;
+        const url = form.photos[index];
+        if (!url) return;
+        try {
+            await api.delete(`/admin/helpers/${helperId}/photos`, { data: { url } });
+            setForm(prev => ({
+                ...prev,
+                photos: prev.photos.filter((_, i) => i !== index),
+            }));
+        } catch (err) {
+            console.error(err);
+            alert('Remove failed');
+        }
+    }
+
     async function handleSubmit(e) {
         e.preventDefault();
         setLoading(true);
@@ -272,13 +289,24 @@ export default function HelperForm({ helperId, onSaved }) {
                     <div className="flex gap-2 flex-wrap">
                         {existingPhotoUrls.length > 0 ? (
                             existingPhotoUrls.map((url, idx) => (
-                                <img
-                                    key={`ex-${idx}`}
-                                    src={url}
-                                    alt=""
-                                    className="w-24 h-24 object-cover rounded border"
-                                    onError={(e) => { e.currentTarget.src = PLACEHOLDER; }}
-                                />
+                                <div key={`ex-${idx}`} className="relative">
+                                    <img
+                                        src={url}
+                                        alt=""
+                                        className="w-24 h-24 object-cover rounded border"
+                                        onError={(e) => { e.currentTarget.src = PLACEHOLDER; }}
+                                    />
+                                    {isEdit && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeExistingPhoto(idx)}
+                                            className="absolute -top-2 -right-2 bg-white border border-gray-300 rounded-full w-6 h-6 text-xs leading-5 hover:bg-gray-50"
+                                            title="Remove"
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
                             ))
                         ) : (
                             <img
