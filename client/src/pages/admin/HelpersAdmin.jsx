@@ -1,5 +1,6 @@
 // client/src/pages/admin/HelpersAdmin.jsx
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../api';
 import HelperForm from './HelperForm.jsx';
 
@@ -18,6 +19,28 @@ export default function HelpersAdmin() {
     const [refreshKey, setRefreshKey] = useState(0); // force re-mount of form
 
     // keep track of whether we are editing or creating
+
+    // Portal target set after mount to support SSR
+    const [portalTarget, setPortalTarget] = useState(null);
+    useEffect(() => {
+        if (typeof document !== 'undefined') {
+            setPortalTarget(
+                document.getElementById('portal-root') || document.body
+            );
+        }
+    }, []);
+
+    // lock body scroll when modal is open
+    useEffect(() => {
+        if (openId !== undefined) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [openId]);
 
     const page = meta.page || 1;
     const limit = meta.limit || 20;
