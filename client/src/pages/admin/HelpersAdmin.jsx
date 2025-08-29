@@ -1,5 +1,6 @@
 // client/src/pages/admin/HelpersAdmin.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../api';
 import HelperForm from './HelperForm.jsx';
 
@@ -16,6 +17,12 @@ export default function HelpersAdmin() {
     // undefined = closed, null = creating, string = editing id
     const [openId, setOpenId] = useState(undefined);
     const [refreshKey, setRefreshKey] = useState(0); // force re-mount of form
+
+    // Portal target with safe fallback
+    const portalTarget = useMemo(() => {
+        if (typeof document === 'undefined') return null;
+        return document.getElementById('portal-root') || document.body;
+    }, []);
 
     // lock body scroll when modal is open
     useEffect(() => {
@@ -200,9 +207,15 @@ export default function HelpersAdmin() {
                                 <td className="px-2 py-2">{h.nationality}</td>
                                 <td className="px-2 py-2 text-center">{h.age}</td>
                                 <td className="px-2 py-2 text-center">{h.experience}</td>
-                                <td className="px-2 py-2">{Array.isArray(h.skills) ? h.skills.join(', ') : '-'}</td>
-                                <td className="px-2 py-2 text-center">{h.availability ? 'Yes' : 'No'}</td>
-                                <td className="px-2 py-2 text-center">{h.expectedSalary ?? '-'}</td>
+                                <td className="px-2 py-2">
+                                    {Array.isArray(h.skills) ? h.skills.join(', ') : '-'}
+                                </td>
+                                <td className="px-2 py-2 text-center">
+                                    {h.availability ? 'Yes' : 'No'}
+                                </td>
+                                <td className="px-2 py-2 text-center">
+                                    {h.expectedSalary ?? '-'}
+                                </td>
                                 <td className="px-2 py-2">
                                     <button
                                         className="px-2 py-1 border rounded"
@@ -252,33 +265,38 @@ export default function HelpersAdmin() {
                 </button>
             </div>
 
-            {/* Modal */}
-            {openId !== undefined && (
-                <div
-                    className="fixed inset-0 bg-black/40 flex items-start justify-end p-4 z-50"
-                    onClick={closeForm}
-                >
+            {/* Modal (Portal) */}
+            {openId !== undefined && portalTarget &&
+                createPortal(
                     <div
-                        className="bg-white rounded shadow-xl p-4 max-w-2xl w-full"
-                        onClick={(e) => e.stopPropagation()}
+                        className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-[999999]"
+                        onClick={closeForm}
+                        role="dialog"
+                        aria-modal="true"
                     >
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-lg font-semibold">
-                                {openId ? 'Edit Helper' : 'Create Helper'}
-                            </h3>
-                            <button className="text-gray-600" onClick={closeForm}>
-                                ✕
-                            </button>
+                        <div
+                            className="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-lg font-semibold">
+                                    {openId ? 'Edit Helper' : 'Create Helper'}
+                                </h3>
+                                <button className="text-gray-600" onClick={closeForm} aria-label="Close">
+                                    ✕
+                                </button>
+                            </div>
+
+                            <HelperForm
+                                key={refreshKey}
+                                helperId={openId || undefined}
+                                onSaved={onSaved}
+                            />
                         </div>
-                        <HelperForm
-                            key={refreshKey}
-                            helperId={openId || undefined}
-                            onSaved={onSaved}
-                        />
-                    </div>
-                </div>
-            )}
+                    </div>,
+                    portalTarget
+                )
+            }
         </div>
     );
 }
-
