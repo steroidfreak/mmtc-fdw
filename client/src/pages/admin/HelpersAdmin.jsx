@@ -255,7 +255,7 @@ export default function HelpersAdmin() {
             {/* Modal */}
             {openId !== undefined && (
                 <div
-                    className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+                    className="fixed inset-0 bg-black/40 flex items-start justify-end p-4 z-50"
                     onClick={closeForm}
                 >
                     <div
