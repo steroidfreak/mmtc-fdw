@@ -17,6 +17,18 @@ export default function HelpersAdmin() {
     const [openId, setOpenId] = useState(undefined);
     const [refreshKey, setRefreshKey] = useState(0); // force re-mount of form
 
+    // lock body scroll when modal is open
+    useEffect(() => {
+        if (openId !== undefined) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [openId]);
+
     const page = meta.page || 1;
     const limit = meta.limit || 20;
     const canPrev = page > 1;
@@ -232,8 +244,14 @@ export default function HelpersAdmin() {
 
             {/* Modal */}
             {openId !== undefined && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded shadow-xl p-4 max-w-2xl w-full">
+                <div
+                    className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+                    onClick={closeForm}
+                >
+                    <div
+                        className="bg-white rounded shadow-xl p-4 max-w-2xl w-full"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-lg font-semibold">
                                 {openId ? 'Edit Helper' : 'Create Helper'}
