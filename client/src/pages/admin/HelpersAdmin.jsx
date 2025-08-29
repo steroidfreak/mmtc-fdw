@@ -95,6 +95,16 @@ export default function HelpersAdmin() {
         load(page, limit);
     }
 
+    // close the modal when pressing the Escape key
+    useEffect(() => {
+        if (openId === undefined) return;
+        function handleKey(e) {
+            if (e.key === 'Escape') closeForm();
+        }
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [openId]);
+
     const gotoFirst = () => canPrev && load(1, limit);
     const gotoPrev = () => canPrev && load(page - 1, limit);
     const gotoNext = () => canNext && load(page + 1, limit);
