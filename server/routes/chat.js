@@ -1,6 +1,10 @@
 const express = require('express');
 const OpenAI = require('openai');
+
 const Agent = require('../utils/agent');
+=======
+const { Agent } = require('openai/agents');
+
 const mongoose = require('mongoose');
 const Helper = require('../models/Helper');
 
@@ -198,7 +202,10 @@ const agent = new Agent({
     ].join(' '),
     model: process.env.MODEL || 'gpt-5',
     tools,
+
     openai,
+
+
     reasoning: { effort: 'low' },
     verbosity: 'low',
 });
