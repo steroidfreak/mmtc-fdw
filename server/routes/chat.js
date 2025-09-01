@@ -1,10 +1,14 @@
 const express = require('express');
 const OpenAI = require('openai');
+const { Agent } = require('openai/agents');
 const mongoose = require('mongoose');
 const Helper = require('../models/Helper');
 
 const router = express.Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Placeholder tools list will be populated below
+// but ensure variable exists before Agent creation.
+const tools = [];
 
 // ------------------- policy (mdw_policy) connection -------------------
 const {
@@ -111,113 +115,112 @@ ${sourcesBlock}`;
 const MDW_POLICY_REGEX =
     /\b(mdws?|migrant domestic|work permit|levy|security bond|maid insurance|medical (exam|insurance)|eop|settling-in|employer eligibility|household income|rest day|handover)\b/i;
 
+// ------------------- agent tools -------------------
+tools.push({
+    type: 'function',
+    function: {
+        name: 'find_helpers',
+        description:
+            'Search the helper database with optional filters. Returns a short formatted list or a contact message if none found.',
+        parameters: {
+            type: 'object',
+            properties: {
+                nationality: { type: 'string', nullable: true },
+                minAge: { type: 'number', nullable: true },
+                maxAge: { type: 'number', nullable: true },
+                minExperience: { type: 'number', nullable: true },
+                skills: { type: 'array', items: { type: 'string' }, nullable: true },
+            },
+        },
+    },
+    async handler(params = {}) {
+        const query = {};
+        if (params.nationality) query.nationality = new RegExp(params.nationality, 'i');
+        if (params.minAge || params.maxAge) query.age = {};
+        if (params.minAge != null) query.age.$gte = Number(params.minAge);
+        if (params.maxAge != null) query.age.$lte = Number(params.maxAge);
+        if (params.minExperience != null) query.experience = { $gte: Number(params.minExperience) };
+        if (params.skills && Array.isArray(params.skills) && params.skills.length) {
+            query.skills = { $all: params.skills.map((s) => new RegExp(String(s), 'i')) };
+        }
+        const helpers = await Helper.find(query).limit(3).lean();
+        if (!helpers.length) return 'contact desmond @ +65 82000631';
+        const lines = helpers.map((h) => {
+            const skills = Array.isArray(h.skills) ? h.skills.join(', ') : '';
+            return `- ${h.name} (${h.age}, ${h.nationality}) — ${skills}`;
+        });
+        return lines.join('\\n');
+    },
+});
+
+tools.push({
+    type: 'function',
+    function: {
+        name: 'mdw_policy',
+        description:
+            'Answer questions about hiring Migrant Domestic Workers in Singapore using internal policy documents.',
+        parameters: {
+            type: 'object',
+            properties: {
+                question: { type: 'string' },
+            },
+            required: ['question'],
+        },
+    },
+    async handler({ question }) {
+        const top = await searchMdw(question, 5);
+        if (!top.length) return 'contact desmond @ +65 82000631';
+        const { system, user } = buildMdwPrompt(question, top);
+        const completion = await openai.chat.completions.create({
+            model: process.env.MODEL || 'gpt-5',
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: user },
+            ],
+        });
+        const answer = completion.choices?.[0]?.message?.content || '';
+        const srcLines = top
+            .map(
+                (p, i) =>
+                    `\\n[Source ${i + 1}] ${p.title || 'MDW Guide'} — chunk #${p.chunkIndex} (score ${p.score.toFixed(3)})`
+            )
+            .join('');
+        return answer + srcLines;
+    },
+});
+
+const agent = new Agent({
+    name: 'Modular Chatbot',
+    instructions: [
+        'You are a concise, helpful assistant.',
+        'If the user asks about content from files, prefer using the file tool.',
+        'Cite filenames when answering from files.',
+    ].join(' '),
+    model: process.env.MODEL || 'gpt-5',
+    tools,
+    reasoning: { effort: 'low' },
+    verbosity: 'low',
+});
+
 // ------------------- main route -------------------
 router.post('/', async (req, res) => {
-    const { message, mode } = req.body;
+    const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
-    // stream headers
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Transfer-Encoding', 'chunked');
     res.setHeader('Connection', 'keep-alive');
 
     try {
-        const isHelperQuery = /helper|maid/i.test(message);
-        const isMdwPolicyQuery = MDW_POLICY_REGEX.test(message);
-
-        // ===== Branch 1: Helper search =====
-        if (mode === 'helper' || (!mode && isHelperQuery)) {
-            // Extract filters via LLM
-            const analysis = await openai.chat.completions.create({
-                model: 'gpt-5',
-                messages: [
-                    {
-                        role: 'system',
-                        content:
-                            'Extract helper search criteria from the following user message and respond as JSON with keys: nationality, minAge, maxAge, minExperience, skills (array). If not specified, use null.',
-                    },
-                    { role: 'user', content: message },
-                ],
-                response_format: { type: 'json_object' },
-            });
-
-            let filters = {};
-            try {
-                filters = JSON.parse(analysis.choices?.[0]?.message?.content ?? '{}');
-            } catch {
-                filters = {};
-            }
-
-            const query = {};
-            if (filters.nationality) query.nationality = new RegExp(filters.nationality, 'i');
-            if (filters.minAge || filters.maxAge) query.age = {};
-            if (filters.minAge != null) query.age.$gte = Number(filters.minAge);
-            if (filters.maxAge != null) query.age.$lte = Number(filters.maxAge);
-            if (filters.minExperience != null) query.experience = { $gte: Number(filters.minExperience) };
-            if (filters.skills && Array.isArray(filters.skills) && filters.skills.length) {
-                query.skills = { $all: filters.skills.map((s) => new RegExp(String(s), 'i')) };
-            }
-
-            const helpers = await Helper.find(query).limit(3).lean();
-
-            if (!helpers.length) {
-                res.write('contact desmond @ +65 82000631');
-                return res.end();
-            }
-
-            const lines = helpers.map((h) => {
-                const skills = Array.isArray(h.skills) ? h.skills.join(', ') : '';
-                return `- ${h.name} (${h.age}, ${h.nationality}) — ${skills}`;
-            });
-
-            res.write(lines.join('\n'));
-            return res.end();
+        const stream = await agent.run(message, { stream: true });
+        for await (const part of stream) {
+            const token = part?.output_text || part?.content || '';
+            if (token) res.write(token);
         }
-
-        // ===== Branch 2: MDW Policy (PDF-first RAG on mdw_policy) =====
-        if (mode === 'policy' || (!mode && isMdwPolicyQuery)) {
-            const top = await searchMdw(message, 5);
-            if (!top.length) {
-                res.write('contact desmond @ +65 82000631');
-                return res.end();
-            }
-
-            const { system, user } = buildMdwPrompt(message, top);
-
-            const stream = await openai.chat.completions.create({
-                model: 'gpt-5',
-                messages: [
-                    { role: 'system', content: system },
-                    { role: 'user', content: user },
-                ],
-                stream: true,
-            });
-
-            for await (const part of stream) {
-                const token = part.choices?.[0]?.delta?.content || '';
-                if (token) res.write(token);
-            }
-
-            const srcLines = top
-                .map(
-                    (p, i) =>
-                        `\n[Source ${i + 1}] ${p.title || 'MDW Guide'} — chunk #${p.chunkIndex} (score ${p.score.toFixed(
-                            3
-                        )})`
-                )
-                .join('');
-            res.write(`\n${srcLines}`);
-            return res.end();
-        }
-
-        // ===== Fallback =====
-        res.write('contact desmond @ +65 82000631');
         return res.end();
     } catch (err) {
         console.error(err);
-        // Ensure we end the chunked response on errors
         try {
-            // headers likely already sent, so don't call res.status(...)
             res.write('contact desmond @ +65 82000631');
             return res.end();
         } catch {
